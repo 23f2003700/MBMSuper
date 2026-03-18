@@ -12,7 +12,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -142,41 +141,7 @@ fun MatrixRainOverlay(
 
         val hasTear = tearRadius > 2f || trail.isNotEmpty()
 
-        // --- Dark backdrop inside tear ---
-        if (hasTear && tearRadius > 3f) {
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        Color(0xFF030303),
-                        Color(0xFF030303).copy(alpha = 0.93f),
-                        Color.Transparent,
-                    ),
-                    center = Offset(touchX, touchY),
-                    radius = tearRadius,
-                ),
-                radius = tearRadius,
-                center = Offset(touchX, touchY),
-            )
-            for (pt in trail) {
-                val r = tearRadius * pt.life * 0.65f
-                if (r < 3f) continue
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            Color(0xFF030303).copy(alpha = 0.85f * pt.life),
-                            Color(0xFF030303).copy(alpha = 0.5f * pt.life),
-                            Color.Transparent,
-                        ),
-                        center = Offset(pt.x, pt.y),
-                        radius = r,
-                    ),
-                    radius = r,
-                    center = Offset(pt.x, pt.y),
-                )
-            }
-        }
-
-        // --- Only draw chars inside tear zones ---
+        // --- Only draw chars inside tear zones, no backdrop ---
         if (!hasTear) return@Canvas
 
         for (mc in columns) {
@@ -191,39 +156,32 @@ fun MatrixRainOverlay(
                     val cy = baseY + i * CELL_H
                     if (cy < -CELL_H || cy > ch + CELL_H) continue
 
-                    val ratio = i.toFloat() / stream.len
                     val isHead = i >= stream.len - 2
 
                     // Only visible inside tear radius
                     var tearAlpha = 0f
                     if (tearRadius > 2f) {
                         val d = hypot(x - touchX, cy - touchY)
-                        if (d < tearRadius) {
-                            val e = 1f - (d / tearRadius)
-                            tearAlpha = e * e * 0.9f
+                        if (d < tearRadius * 0.88f) {
+                            val e = 1f - (d / (tearRadius * 0.88f))
+                            tearAlpha = (e * 1.8f).coerceAtMost(1f)
                         }
                     }
                     for (pt in trail) {
                         val r = tearRadius * pt.life * 0.65f
                         if (r < 2f) continue
                         val d = hypot(x - pt.x, cy - pt.y)
-                        if (d < r) {
-                            val e = 1f - (d / r)
-                            val b = e * e * 0.7f * pt.life
+                        if (d < r * 0.88f) {
+                            val e = 1f - (d / (r * 0.88f))
+                            val b = (e * 1.5f * pt.life).coerceAtMost(1f)
                             if (b > tearAlpha) tearAlpha = b
                         }
                     }
 
-                    if (tearAlpha < 0.03f) continue
+                    if (tearAlpha < 0.05f) continue
 
-                    val color = when {
-                        tearAlpha > 0.5f && isHead -> Color(0xFFFFFFFF)
-                        tearAlpha > 0.3f && isHead -> Color(0xFFDDFFDD)
-                        tearAlpha > 0.2f -> Color(0xFF00FF41)
-                        isHead -> Color(0xFF66EE66)
-                        ratio > 0.5f -> Color(0xFF00CC33)
-                        else -> Color(0xFF00AA22)
-                    }
+                    // Dark green on white — no black backdrop needed
+                    val color = if (isHead) Color(0xFF006400) else Color(0xFF008F11)
 
                     val result = textMeasurer.measure(
                         stream.chars[i].toString(),
@@ -237,24 +195,6 @@ fun MatrixRainOverlay(
                     drawText(result, color.copy(alpha = tearAlpha), Offset(x, cy))
                 }
             }
-        }
-
-        // --- Tear edge glow ring ---
-        if (tearRadius > 5f) {
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        Color.Transparent,
-                        Color(0xFF00FF41).copy(alpha = 0.28f),
-                        Color(0xFF00FF41).copy(alpha = 0.06f),
-                        Color.Transparent,
-                    ),
-                    center = Offset(touchX, touchY),
-                    radius = tearRadius * 1.12f,
-                ),
-                radius = tearRadius * 1.12f,
-                center = Offset(touchX, touchY),
-            )
         }
     }
 }
